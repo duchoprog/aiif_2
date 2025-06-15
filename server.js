@@ -10,18 +10,18 @@ const helmet = require('helmet');
 const compression = require('compression');
 const expressQueue = require('express-queue');
 const NodeCache = require('node-cache');
-const logger = require('./logger');
 const { excelToHTML } = require('./excelToHTML');
 const { extractImages } = require('./imageExtractor');
 const XLSX = require('xlsx');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
+const fsExtra = require('fs-extra');
 
 // Validate environment variables
 const requiredEnvVars = ['OPENAI_API_KEY', 'OPENAI_ASSISTANT_ID'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 if (missingEnvVars.length > 0) {
-    logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    console.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
     process.exit(1);
 }
 
@@ -41,14 +41,14 @@ const fileCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 const uploadDir = 'uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
-    logger.info('Created uploads directory');
+    console.info('Created uploads directory');
 }
 
 // Create images directory if it doesn't exist
 const imagesDir = 'images';
 if (!fs.existsSync(imagesDir)) {
     fs.mkdirSync(imagesDir);
-    logger.info('Created images directory');
+    console.info('Created images directory');
 }
 
 // Configure multer for file upload
@@ -57,33 +57,35 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
+        const uniqueSuffix = Date.now();
+        cb(null, uniqueSuffix + '-' + file.originalname);
     }
 });
 
-const upload = multer({
+const fileFilter = (req, file, cb) => {
+    console.log('Multer fileFilter called with file:', file);
+    const allowedTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/msword',  // .doc
+        'application/vnd.ms-excel'  // .xls
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+        console.log('File type accepted:', file.mimetype);
+        cb(null, true);
+    } else {
+        console.log('File type rejected:', file.mimetype);
+        cb(new Error('Invalid file type. Only PDF, DOC, DOCX, XLS, and XLSX files are allowed.'), false);
+    }
+};
+
+const upload = multer({ 
     storage: storage,
+    fileFilter: fileFilter,
     limits: {
-        fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10485760, // 10MB default
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'text/plain',
-            'text/markdown',
-            'application/json',
-            'text/csv'
-        ];
-        
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type'));
-        }
+        fileSize: 10 * 1024 * 1024 // 10MB limit
     }
 });
 
@@ -112,7 +114,7 @@ app.use('/analyze', queue);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    logger.error(err);
+    console.error(err);
     res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -120,20 +122,24 @@ app.use((err, req, res, next) => {
 app.post('/analyze', upload.array('documents'), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
-            logger.error('No files were uploaded');
+            console.error('No files were uploaded');
             return res.status(400).json({ error: 'No files uploaded' });
         }
 
-        logger.info(`Received ${req.files.length} files for processing`);
+        console.info(`Received ${req.files.length} files for processing`);
         
         const results = await Promise.all(req.files.map(async (file) => {
             try {
-                logger.info(`Processing file: ${file.originalname} (${file.mimetype})`);
+                console.info(`Processing file: ${file.originalname} (${file.mimetype})`);
                 
                 // Extract images from the file
-                logger.info('Extracting images from file...');
-                const extractedImages = await extractImages(file.path, file.originalname);
-                logger.info(`Extracted ${extractedImages.length} images from ${file.originalname}`);
+                console.info('Extracting images from file...');
+                const fileExt = path.extname(file.originalname).toLowerCase();
+                console.log("extracted file ext: ", fileExt);
+                
+                const baseFilename = path.basename(file.originalname, fileExt);
+                const extractedImages = await extractImages(file.path, baseFilename, fileExt);
+                console.info(`Extracted ${extractedImages.length} images from ${file.originalname}`);
 
                 let fileContent;
                 let filePath = file.path;
@@ -141,31 +147,31 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 // Convert Excel files to HTML
                 if (file.mimetype === 'application/vnd.ms-excel' || 
                     file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-                    logger.info('Converting Excel file to HTML...');
+                    console.info('Converting Excel file to HTML...');
                     const { htmlContent, tempFilePath } = await excelToHTML(file.path);
                     filePath = tempFilePath;
-                    logger.info('Excel file converted to HTML successfully');
+                    console.info('Excel file converted to HTML successfully');
                 }
 
                 // Read file as binary
                 fileContent = await fs.promises.readFile(filePath);
-                logger.info(`Successfully read file: ${file.originalname}, size: ${fileContent.length} bytes`);
+                console.info(`Successfully read file: ${file.originalname}, size: ${fileContent.length} bytes`);
                 
                 // Upload file to OpenAI
-                logger.info('Uploading file to OpenAI...');
+                console.info('Uploading file to OpenAI...');
                 const uploadedFile = await openai.files.create({
                     file: fs.createReadStream(filePath),
                     purpose: 'assistants'
                 });
-                logger.info(`File uploaded successfully with ID: ${uploadedFile.id}`);
+                console.info(`File uploaded successfully with ID: ${uploadedFile.id}`);
 
                 // Create a new thread
-                logger.info('Creating new thread...');
+                console.info('Creating new thread...');
                 const thread = await openai.beta.threads.create();
-                logger.info(`Thread created with ID: ${thread.id}`);
+                console.info(`Thread created with ID: ${thread.id}`);
 
                 // Add the file content as a message
-                logger.info('Adding file content to thread...');
+                console.info('Adding file content to thread...');
                 try {
                     await openai.beta.threads.messages.create(thread.id, {
                         role: "user",
@@ -175,9 +181,9 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                             tools: [{ type: "file_search" }]
                         }]
                     });
-                    logger.info('File content added to thread');
+                    console.info('File content added to thread');
                 } catch (error) {
-                    logger.error('Error adding file content to thread:', {
+                    console.error('Error adding file content to thread:', {
                         error: error.message,
                         code: error.code,
                         type: error.type,
@@ -190,27 +196,27 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 }
 
                 // Run the assistant
-                logger.info('Starting assistant run...');
+                console.info('Starting assistant run...');
                 const run = await openai.beta.threads.runs.create(thread.id, {
                     assistant_id: process.env.OPENAI_ASSISTANT_ID
                 });
-                logger.info(`Run started with ID: ${run.id}`);
+                console.info(`Run started with ID: ${run.id}`);
 
                 // Wait for the run to complete
-                logger.info('Waiting for run to complete...');
+                console.info('Waiting for run to complete...');
                 let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
                 while (runStatus.status === 'in_progress' || runStatus.status === 'queued') {
-                    logger.info(`Run status: ${runStatus.status}`);
+                    console.info(`Run status: ${runStatus.status}`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
                 }
-                logger.info(`Run completed with status: ${runStatus.status}`);
+                console.info(`Run completed with status: ${runStatus.status}`);
 
                 // Get the messages
-                logger.info('Retrieving messages from thread...');
+                console.info('Retrieving messages from thread...');
                 const messages = await openai.beta.threads.messages.list(thread.id);
                 const assistantMessage = messages.data.find(m => m.role === 'assistant');
-                logger.info('Messages retrieved successfully');
+                console.info('Messages retrieved successfully');
 
                 // Calculate costs
                 const promptTokens = runStatus.usage?.prompt_tokens || 0;
@@ -245,8 +251,8 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                     cleanupInfo
                 };
             } catch (error) {
-                logger.error(`Error processing file ${file.originalname}:`, error);
-                logger.error('Error details:', {
+                console.error(`Error processing file ${file.originalname}:`, error);
+                console.error('Error details:', {
                     message: error.message,
                     stack: error.stack,
                     code: error.code
@@ -254,7 +260,7 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 // Clean up the file even if there's an error
                 if (fs.existsSync(file.path)) {
                     fs.unlinkSync(file.path);
-                    logger.info(`Cleaned up file after error: ${file.originalname}`);
+                    console.info(`Cleaned up file after error: ${file.originalname}`);
                 }
                 return {
                     filename: file.originalname,
@@ -263,7 +269,7 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
             }
         }));
 
-        logger.info('All files processed successfully');
+        console.info('All files processed successfully');
         res.json({ results });
 
         // Perform cleanup after sending response
@@ -273,29 +279,29 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                     // Clean up local files
                     if (fs.existsSync(result.cleanupInfo.filePath)) {
                         fs.unlinkSync(result.cleanupInfo.filePath);
-                        logger.info(`Cleaned up local file: ${result.filename}`);
+                        console.info(`Cleaned up local file: ${result.filename}`);
                     }
                     if (result.cleanupInfo.htmlFilePath && fs.existsSync(result.cleanupInfo.htmlFilePath)) {
                         fs.unlinkSync(result.cleanupInfo.htmlFilePath);
-                        logger.info(`Cleaned up HTML file for: ${result.filename}`);
+                        console.info(`Cleaned up HTML file for: ${result.filename}`);
                     }
 
                     // Clean up OpenAI resources
                     openai.files.del(result.cleanupInfo.uploadedFileId)
-                        .then(() => logger.info(`Deleted file from OpenAI: ${result.cleanupInfo.uploadedFileId}`))
-                        .catch(err => logger.error(`Error deleting OpenAI file: ${err.message}`));
+                        .then(() => console.info(`Deleted file from OpenAI: ${result.cleanupInfo.uploadedFileId}`))
+                        .catch(err => console.error(`Error deleting OpenAI file: ${err.message}`));
 
                     openai.beta.threads.del(result.cleanupInfo.threadId)
-                        .then(() => logger.info(`Deleted thread: ${result.cleanupInfo.threadId}`))
-                        .catch(err => logger.error(`Error deleting thread: ${err.message}`));
+                        .then(() => console.info(`Deleted thread: ${result.cleanupInfo.threadId}`))
+                        .catch(err => console.error(`Error deleting thread: ${err.message}`));
                 } catch (error) {
-                    logger.error(`Error during cleanup for ${result.filename}:`, error);
+                    console.error(`Error during cleanup for ${result.filename}:`, error);
                 }
             }
         });
     } catch (error) {
-        logger.error('Error processing documents:', error);
-        logger.error('Error details:', {
+        console.error('Error processing documents:', error);
+        console.error('Error details:', {
             message: error.message,
             stack: error.stack,
             code: error.code
@@ -315,11 +321,11 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
         for (const file of files.data) {
             if (file.created_at * 1000 < oneHourAgo) {
                 await openai.files.del(file.id);
-                logger.info(`Cleaned up old file: ${file.id}`);
+                console.info(`Cleaned up old file: ${file.id}`);
             }
         }
     } catch (error) {
-        logger.error('Error in cleanup job:', error);
+        console.error('Error in cleanup job:', error);
     }
 }, 3600000); // Run every hour */
 
@@ -330,5 +336,5 @@ app.get('/health', (req, res) => {
 
 // Start server
 app.listen(port, () => {
-    logger.info(`Server running at http://localhost:${port}`);
+    console.info(`Server running at http://localhost:${port}`);
 }); 

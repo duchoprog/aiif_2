@@ -122,7 +122,7 @@ analyzeBtn.addEventListener('click', async () => {
 
     try {
         console.log("culo")
-        const response = await fetch('/extract', {
+        const response = await fetch('/analyze', {
             method: 'POST',
             body: formData
         });
