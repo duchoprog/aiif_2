@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Analysis</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Document Analysis</h1>
+        <div id="dropZone" class="drop-zone">
+            <p>Drag and drop files here or</p>
+            <input type="file" id="fileInput" multiple accept=".pdf,.doc,.docx,.txt,.md,.json,.csv,.xls,.xlsx" style="display: none">
+            <button id="selectFilesBtn">Select Files</button>
+        </div>
+        <div id="fileList" class="file-list"></div>
+        <button id="analyzeBtn" disabled>Analyze Documents</button>
+        <div id="loading" class="loading" style="display: none">
+            <div class="spinner"></div>
+            <p>Analyzing documents...</p>
+        </div>
+        <div id="results" class="results"></div>
+        
+        <!-- XLS Warning Popup -->
+        <div id="xlsWarningPopup" class="popup" style="display: none;">
+            <div class="popup-content">
+                <h3>XLS File Warning</h3>
+                <p>XLS files can be processed but without image extraction. If you want to extract images please convert this file to XLSX.</p>
+                <button id="closePopupBtn">Close</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html> 
