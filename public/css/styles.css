@@ -58,18 +58,40 @@ h1 {
     background-color: #f8f9fa;
     border-radius: 4px;
     margin-bottom: 0.5rem;
+    position: relative;
 }
 
 .file-item span {
     flex-grow: 1;
+    margin-right: 30px; /* Reduced space for the button */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .file-item button {
-    background: none;
+    background: #dc3545;
     border: none;
-    color: #dc3545;
+    color: white;
     cursor: pointer;
     padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: bold;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: background-color 0.2s ease;
+    min-width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-item button:hover {
+    background: #c82333;
 }
 
 button {

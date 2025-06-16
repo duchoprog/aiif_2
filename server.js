@@ -4,18 +4,17 @@ const multer = require('multer');
 const cors = require('cors');
 const OpenAI = require('openai');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs-extra');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const compression = require('compression');
 const expressQueue = require('express-queue');
 const NodeCache = require('node-cache');
-const { excelToHTML } = require('./excelToHTML');
 const { extractImages } = require('./imageExtractor');
-const XLSX = require('xlsx');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-const fsExtra = require('fs-extra');
+const xlsx = require('xlsx');
+const { extractImagesFromPDF } = require('./pdfImageExtractor');
 
 // Validate environment variables
 const requiredEnvVars = ['OPENAI_API_KEY', 'OPENAI_ASSISTANT_ID'];
@@ -138,9 +137,22 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 console.log("extracted file ext: ", fileExt);
                 
                 const baseFilename = path.basename(file.originalname, fileExt);
-                const extractedImages = await extractImages(file.path, baseFilename, fileExt);
-                console.info(`Extracted ${extractedImages.length} images from ${file.originalname}`);
+                let extractedImages = []; // Initialize as empty array
+                let imageError = null;
 
+                // Try to extract images, but continue even if it fails
+                try {
+                    if (fileExt === '.pdf') {
+                        extractedImages = await extractImagesFromPDF(file.path, baseFilename);
+                    } else {
+                        extractedImages = await extractImages(file.path, baseFilename, fileExt);
+                    }
+                    console.info(`Extracted ${extractedImages.length} images from ${file.originalname}`);
+                } catch (error) {
+                    console.error(`Error extracting images from ${file.originalname}:`, error);
+                    imageError = error.message;
+                }
+                
                 let fileContent;
                 let filePath = file.path;
 
@@ -240,6 +252,7 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                         filename: img.filename,
                         path: img.path
                     })),
+                    imageError: imageError,
                     cost: {
                         promptTokens,
                         completionTokens,
