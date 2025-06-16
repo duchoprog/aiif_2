@@ -230,6 +230,46 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 const assistantMessage = messages.data.find(m => m.role === 'assistant');
                 console.info('Messages retrieved successfully');
 
+                // Parse the analysis content and add image properties
+                let analysisContent = assistantMessage.content[0].text.value;
+                let jsonObjects = [];
+                
+                try {
+                    // Try to parse as JSON array
+                    jsonObjects = JSON.parse(analysisContent);
+                    if (!Array.isArray(jsonObjects)) {
+                        jsonObjects = [jsonObjects];
+                    }
+                } catch (e) {
+                    // If not valid JSON, wrap in array
+                    jsonObjects = [{ content: analysisContent }];
+                }
+
+                // Add image properties to each JSON object
+                const maxImagesPerItem = 7;
+                let currentImageIndex = 0;
+
+                jsonObjects.forEach((jsonObj, index) => {
+                    // Add empty image properties to all objects
+                    for (let i = 1; i <= maxImagesPerItem; i++) {
+                        jsonObj[`image${i}`] = null;
+                    }
+
+                    // Add image values to this object if there are remaining images
+                    if (currentImageIndex < extractedImages.length) {
+                        const remainingImages = extractedImages.length - currentImageIndex;
+                        const imagesToAdd = Math.min(remainingImages, maxImagesPerItem);
+                        
+                        for (let i = 0; i < imagesToAdd; i++) {
+                            jsonObj[`image${i + 1}`] = extractedImages[currentImageIndex].filename;
+                            currentImageIndex++;
+                        }
+                    }
+                });
+
+                // Convert back to string
+                analysisContent = JSON.stringify(jsonObjects, null, 2);
+
                 // Calculate costs
                 const promptTokens = runStatus.usage?.prompt_tokens || 0;
                 const completionTokens = runStatus.usage?.completion_tokens || 0;
@@ -247,7 +287,7 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
 
                 return {
                     filename: file.originalname,
-                    analysis: assistantMessage.content[0].text.value,
+                    analysis: analysisContent,
                     extractedImages: extractedImages.map(img => ({
                         filename: img.filename,
                         path: img.path
