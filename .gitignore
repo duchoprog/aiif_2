@@ -2,3 +2,7 @@ node_modules
 *.docx
 images\*.*
 .env
+*.png
+*.jpg
+*.jpeg
+*.xlsx
