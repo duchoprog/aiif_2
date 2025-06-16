@@ -15,7 +15,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const xlsx = require('xlsx');
 const { extractImagesFromPDF } = require('./pdfImageExtractor');
-
+const { excelToHTML } = require('./excelToHTML');
 // Validate environment variables
 const requiredEnvVars = ['OPENAI_API_KEY', 'OPENAI_ASSISTANT_ID'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
