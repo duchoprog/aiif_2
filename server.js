@@ -16,6 +16,7 @@ const mammoth = require('mammoth');
 const xlsx = require('xlsx');
 const { extractImagesFromPDF } = require('./pdfImageExtractor');
 const { excelToHTML } = require('./excelToHTML');
+const { writeToExcel } = require('./excelWriter');
 // Validate environment variables
 const requiredEnvVars = ['OPENAI_API_KEY', 'OPENAI_ASSISTANT_ID'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
@@ -120,6 +121,11 @@ app.use((err, req, res, next) => {
 // Routes
 app.post('/analyze', upload.array('documents'), async (req, res) => {
     try {
+        const projectName = req.body.projectName;
+        if (!projectName) {
+            return res.status(400).json({ error: 'Project name is required' });
+        }
+
         if (!req.files || req.files.length === 0) {
             console.error('No files were uploaded');
             return res.status(400).json({ error: 'No files uploaded' });
@@ -143,8 +149,10 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 // Try to extract images, but continue even if it fails
                 try {
                     if (fileExt === '.pdf') {
+                        console.log("extracting images from pdf");
                         extractedImages = await extractImagesFromPDF(file.path, baseFilename);
                     } else {
+                        console.log("extracting images from docx");
                         extractedImages = await extractImages(file.path, baseFilename, fileExt);
                     }
                     console.info(`Extracted ${extractedImages.length} images from ${file.originalname}`);
@@ -246,22 +254,21 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 }
 
                 // Add image properties to each JSON object
-                const maxImagesPerItem = 7;
+                const maxImagesPerItem = 10;
                 let currentImageIndex = 0;
 
                 jsonObjects.forEach((jsonObj, index) => {
-                    // Add empty image properties to all objects
-                    for (let i = 1; i <= maxImagesPerItem; i++) {
-                        jsonObj[`image${i}`] = null;
-                    }
-
+                    console.log("reemplaza imagenes");
+                    console.log("extractedImages: ", extractedImages);
                     // Add image values to this object if there are remaining images
                     if (currentImageIndex < extractedImages.length) {
+                        console.log("extractedImages: ", extractedImages);
                         const remainingImages = extractedImages.length - currentImageIndex;
                         const imagesToAdd = Math.min(remainingImages, maxImagesPerItem);
                         
                         for (let i = 0; i < imagesToAdd; i++) {
-                            jsonObj[`image${i + 1}`] = extractedImages[currentImageIndex].filename;
+                            console.log("adding image to jsonObj: ", extractedImages);
+                            jsonObj[`IMAGE ${i + 1}`] = extractedImages[currentImageIndex].path;
                             currentImageIndex++;
                         }
                     }
@@ -323,7 +330,42 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
         }));
 
         console.info('All files processed successfully');
-        res.json({ results });
+        
+        // Debug: Check results array
+        console.log('Results array:', results);
+        console.log('Results length:', results.length);
+        results.forEach((result, index) => {
+            console.log(`Result ${index}:`, {
+                filename: result.filename,
+                hasAnalysis: !!result.analysis,
+                analysisLength: result.analysis ? result.analysis.length : 0,
+                error: result.error
+            });
+        });
+        
+        // Process results for Excel
+        const jsonData = results.map(result => {
+            try {
+                console.log(`Parsing analysis for ${result.filename}:`, result.analysis);
+                return JSON.parse(result.analysis);
+            } catch (e) {
+                console.error('Error parsing result:', e);
+                console.error('Failed analysis content:', result.analysis);
+                return null;
+            }
+        }).filter(data => data !== null);
+
+        console.log('Final jsonData:', jsonData);
+        console.log('jsonData length:', jsonData.length);
+
+        // Write to Excel
+        const excelPath = await writeToExcel(jsonData, projectName);
+        
+        res.json({ 
+            success: true,
+            results,
+            excelPath
+        });
 
         // Perform cleanup after sending response
         results.forEach(result => {
@@ -385,6 +427,27 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'healthy' });
+});
+
+// Add download endpoint
+app.get('/download', (req, res) => {
+    const filePath = req.query.path;
+    if (!filePath) {
+        return res.status(400).json({ error: 'No file path provided' });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Send the file
+    res.download(filePath, (err) => {
+        if (err) {
+            console.error('Error downloading file:', err);
+            res.status(500).json({ error: 'Error downloading file' });
+        }
+    });
 });
 
 // Start server

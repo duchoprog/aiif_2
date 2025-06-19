@@ -111,17 +111,23 @@ function removeFile(filename) {
 analyzeBtn.addEventListener('click', async () => {
     if (currentFiles.size === 0) return;
 
+    const projectName = document.getElementById('projectName').value.trim();
+    if (!projectName) {
+        alert('Please enter a project name');
+        return;
+    }
+
     const formData = new FormData();
     currentFiles.forEach(file => {
         formData.append('documents', file);
     });
+    formData.append('projectName', projectName);
 
     loading.style.display = 'block';
     results.innerHTML = '';
     analyzeBtn.disabled = true;
 
     try {
-        console.log("culo")
         const response = await fetch('/analyze', {
             method: 'POST',
             body: formData
@@ -150,6 +156,18 @@ analyzeBtn.addEventListener('click', async () => {
                     }
                 </div>
             `).join('');
+
+            // Add download link if Excel was generated
+            if (data.excelPath) {
+                results.innerHTML += `
+                    <div class="excel-download">
+                        <h3>Excel File Generated</h3>
+                        <a href="/download?path=${encodeURIComponent(data.excelPath)}" class="download-btn">
+                            Download Excel File
+                        </a>
+                    </div>
+                `;
+            }
         } else {
             results.innerHTML = `<div class="error">Error: ${data.error}</div>`;
         }

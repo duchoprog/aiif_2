@@ -20,6 +20,8 @@ async function cleanupTempDir(tempDir) {
 }
 
 async function extractImagesFromPDF(pdfPath, baseFilename) {
+    console.log("pdfPath", pdfPath);
+    console.log("baseFilename", baseFilename);
     let tempDir = null;
     try {
         // Create temporary directory for this extraction
@@ -32,11 +34,14 @@ async function extractImagesFromPDF(pdfPath, baseFilename) {
 
         // Save each image with a unique name
         for (let i = 0; i < images.length; i++) {
-            const imagePath = path.join(tempDir, `${baseFilename}_image_${i + 1}.png`);
+            const imageFilename = `${baseFilename}_image_${i + 1}.png`;
+            const imagePath = path.join("images", imageFilename);
+            console.log("imagePath", imagePath);
             await fs.writeFile(imagePath, images[i]);
             
             const relativePath = path.relative(process.cwd(), imagePath);
             extractedImages.push({
+                filename: imageFilename,
                 path: relativePath,
                 type: 'png'
             });
