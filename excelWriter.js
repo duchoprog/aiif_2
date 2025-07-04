@@ -1,7 +1,8 @@
 const ExcelJS = require('exceljs');
 const path = require('path');
+const fs = require('fs');
 
-async function writeToExcel(data, projectName) {
+async function writeToExcel(data, projectName, sessionOutputDir = null) {
     try {
         console.log('Starting Excel write process');
         console.log('Data received:', data);
@@ -10,9 +11,33 @@ async function writeToExcel(data, projectName) {
         console.log('Data structure:', JSON.stringify(data, null, 2));
         
         // Set default paths
-        const templatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
+        let templatePath;
+        if (sessionOutputDir) {
+            // First try session's excelBase
+            const sessionTemplatePath = path.join(path.dirname(sessionOutputDir), 'excelBase', 'INQUIRY 2024 TEMPLATE v4 pablo2.xlsx');
+            const rootTemplatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
+            
+            // Check if session template exists, otherwise use root template
+            if (fs.existsSync(sessionTemplatePath)) {
+                templatePath = sessionTemplatePath;
+                console.log(`Using session template: ${templatePath}`);
+            } else {
+                templatePath = rootTemplatePath;
+                console.log(`Session template not found, using root template: ${templatePath}`);
+            }
+        } else {
+            templatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
+        }
+        
         const timestamp = new Date().getTime();
-        const outputPath = `./output/${projectName}-${timestamp}.xlsx`;
+        const outputDir = sessionOutputDir || './output';
+        const outputPath = path.join(outputDir, `${projectName}-${timestamp}.xlsx`);
+        
+        // Ensure output directory exists
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+            console.log(`Created output directory: ${outputDir}`);
+        }
         
         // Load the template workbook
         const workbook = new ExcelJS.Workbook();

@@ -7,11 +7,11 @@ const { logMemoryUsage } = require("./utilities.js");
 
 async function replaceImages(req) {
   // Define the directories
-  const outputDir = path.join(__dirname, req.body.sessionID, "output");
-  const imagesDir = path.join(__dirname, req.body.sessionID, "imageVault");
+  const outputDir = path.join(__dirname, "sessions", req.body.sessionID, "output");
+  const imagesDir = path.join(__dirname, "sessions", req.body.sessionID, "imageVault");
 
   /* let originalFile = await getLastModifiedFile(
-    `./${req.body.sessionID}/output`
+    `./sessions/${req.body.sessionID}/output`
   ); */
 
   try {

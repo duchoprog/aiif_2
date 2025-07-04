@@ -9,10 +9,8 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const compression = require('compression');
 const expressQueue = require('express-queue');
-const NodeCache = require('node-cache');
 const { extractImages } = require('./imageExtractor');
 const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
 const xlsx = require('xlsx');
 const { extractImagesFromPDF } = require('./pdfImageExtractor');
 const { excelToHTML } = require('./excelToHTML');
@@ -28,32 +26,128 @@ if (missingEnvVars.length > 0) {
 const app = express();
 const port = process.env.PORT || 3000;
 
+let uploadDir = ""
+let imagesDir = ""
+let tempDir = ""
+let outputDir = ""
+let excelBaseDir = ""
+
+// Session configuration.
+const SESSION_CLEANUP_MINUTES = parseInt(process.env.SESSION_CLEANUP_MINUTES) || 1; // 24 hourswould be 1440
+const SESSION_CLEANUP_MS = SESSION_CLEANUP_MINUTES * 60 * 1000;
+
+// Helper function to validate and sanitize session name
+function validateSessionName(sessionName) {
+    if (!sessionName) {
+        return null;
+    }
+    // Sanitize session name to prevent directory traversal, but allow hyphens
+    return sessionName.replace(/[^a-zA-Z0-9-_]/g, '_');
+}
+
+// Helper function to generate session name (fallback for backward compatibility)
+function generateSessionName(projectName) {
+    if (projectName && projectName.trim()) {
+        // Remove unsafe characters and trim
+        const safeName = projectName.trim().replace(/[^a-zA-Z0-9-_]/g, '');
+        // Generate a random 4-digit number
+        const random4 = Math.floor(1000 + Math.random() * 9000);
+        return `${safeName}${random4}`;
+    } else {
+        // Generate a random 8-digit number
+        const random8 = Math.floor(10000000 + Math.random() * 90000000);
+        return `Session${random8}`;
+    }
+}
+
 // Initialize OpenAI
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: process.env.OPENAI_API_KEY,
+    defaultHeaders: {
+        'OpenAI-Beta': 'assistants=v2'
+    }
 });
 
-// Initialize cache for storing thread IDs and file IDs
-const threadCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
-const fileCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 
-// Create uploads directory if it doesn't exist
-const uploadDir = 'uploads';
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-    console.info('Created uploads directory');
+
+
+
+// Session cleanup function
+async function cleanupOldSessions() {
+    try {
+        const sessionsDir = 'sessions';
+        if (!fs.existsSync(sessionsDir)) {
+            return;
+        }
+
+        const sessionFolders = await fs.readdir(sessionsDir);
+        const cutoffTime = Date.now() - SESSION_CLEANUP_MS;
+        let cleanedCount = 0;
+
+        for (const folder of sessionFolders) {
+            const folderPath = path.join(sessionsDir, folder);
+            const stats = await fs.stat(folderPath);
+            
+            if (stats.isDirectory() && stats.mtime.getTime() < cutoffTime) {
+                await fs.remove(folderPath);
+                console.info(`Cleaned up old session: ${folder}`);
+                cleanedCount++;
+            }
+        }
+
+        if (cleanedCount > 0) {
+            console.info(`Session cleanup completed: ${cleanedCount} old sessions removed`);
+        }
+    } catch (error) {
+        console.error('Error during session cleanup:', error);
+    }
 }
 
-// Create images directory if it doesn't exist
-const imagesDir = 'images';
-if (!fs.existsSync(imagesDir)) {
-    fs.mkdirSync(imagesDir);
-    console.info('Created images directory');
+// Create sessions directory if it doesn't exist
+const sessionsDir = 'sessions';
+if (!fs.existsSync(sessionsDir)) {
+    fs.mkdirSync(sessionsDir);
+    console.info('Created sessions directory');
 }
+
+// Run initial cleanup
+cleanupOldSessions();
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
+        // Extract session name from query parameters
+        const sessionName = req.query.sessionName;
+        if (!sessionName) {
+            return cb(new Error('Session name is required'), null);
+        }
+        
+        console.log('Found session name from query:', sessionName);
+        const validatedSessionName = validateSessionName(sessionName);
+        console.log('Validated session name:', validatedSessionName);
+        if (!validatedSessionName) {
+            console.error('Invalid session name after validation:', sessionName);
+            return cb(new Error('Invalid session name'), null);
+        }
+        
+        const sessionDir = path.join('sessions', validatedSessionName);
+        
+        // Create session subdirectories
+         uploadDir = path.join(sessionDir, 'uploads');
+         imagesDir = path.join(sessionDir, 'images');
+         tempDir = path.join(sessionDir, 'temp');
+         outputDir = path.join(sessionDir, 'output');
+         excelBaseDir = path.join(sessionDir, 'excelBase');
+        
+        // Create directories if they don't exist
+        [sessionDir, uploadDir, imagesDir, tempDir, outputDir, excelBaseDir].forEach(dir => {
+            if (!fs.existsSync(dir)) {
+                console.log("creating directory: ", dir);
+                fs.mkdirSync(dir, { recursive: true });
+            }
+        });
+        
+    
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
@@ -104,6 +198,8 @@ const limiter = rateLimit({
 });
 app.use('/analyze', limiter);
 
+
+
 // Request queue
 const queue = expressQueue({
     activeLimit: parseInt(process.env.MAX_CONCURRENT_USERS) || 20,
@@ -120,8 +216,15 @@ app.use((err, req, res, next) => {
 
 // Routes
 app.post('/analyze', upload.array('documents'), async (req, res) => {
+    console.log("**RECEIVED REQUEST**", req.body);
     try {
+        const sessionName = validateSessionName(req.body.sessionName);
         const projectName = req.body.projectName;
+        
+        if (!sessionName) {
+            return res.status(400).json({ error: 'Session name is required' });
+        }
+        
         if (!projectName) {
             return res.status(400).json({ error: 'Project name is required' });
         }
@@ -132,6 +235,10 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
         }
 
         console.info(`Received ${req.files.length} files for processing`);
+        
+        // Log session directory structure
+        const sessionDir = path.join('sessions', sessionName);
+        console.info(`Using session directory: ${sessionDir}`);
         
         const results = await Promise.all(req.files.map(async (file) => {
             try {
@@ -146,14 +253,18 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 let extractedImages = []; // Initialize as empty array
                 let imageError = null;
 
+                // Get session directory for this project
+                const sessionDir = path.join('sessions', sessionName);
+                const imagesDir = path.join(sessionDir, 'images');
+
                 // Try to extract images, but continue even if it fails
                 try {
                     if (fileExt === '.pdf') {
                         console.log("extracting images from pdf");
-                        extractedImages = await extractImagesFromPDF(file.path, baseFilename);
+                        extractedImages = await extractImagesFromPDF(file.path, baseFilename, imagesDir);
                     } else {
                         console.log("extracting images from docx");
-                        extractedImages = await extractImages(file.path, baseFilename, fileExt);
+                        extractedImages = await extractImages(file.path, baseFilename, fileExt, imagesDir);
                     }
                     console.info(`Extracted ${extractedImages.length} images from ${file.originalname}`);
                 } catch (error) {
@@ -168,7 +279,8 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
                 if (file.mimetype === 'application/vnd.ms-excel' || 
                     file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
                     console.info('Converting Excel file to HTML...');
-                    const { htmlContent, tempFilePath } = await excelToHTML(file.path);
+                    const tempDir = path.join(sessionDir, 'temp');
+                    const { htmlContent, tempFilePath } = await excelToHTML(file.path, tempDir);
                     filePath = tempFilePath;
                     console.info('Excel file converted to HTML successfully');
                 }
@@ -217,6 +329,8 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
 
                 // Run the assistant
                 console.info('Starting assistant run...');
+                console.info('Using assistant ID:', process.env.OPENAI_ASSISTANT_ID);
+                console.info('Assistant ID length:', process.env.OPENAI_ASSISTANT_ID?.length);
                 const run = await openai.beta.threads.runs.create(thread.id, {
                     assistant_id: process.env.OPENAI_ASSISTANT_ID
                 });
@@ -359,7 +473,24 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
         console.log('jsonData length:', jsonData.length);
 
         // Write to Excel
-        const excelPath = await writeToExcel(jsonData, projectName);
+        
+        // Ensure all session directories exist before writing Excel
+        const sessionDirs = [
+            sessionDir,
+            path.join(sessionDir, 'uploads'),
+            path.join(sessionDir, 'images'),
+            path.join(sessionDir, 'temp'),
+            outputDir
+        ];
+        
+        sessionDirs.forEach(dir => {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+                console.info(`Created session directory: ${dir}`);
+            }
+        });
+        
+        const excelPath = await writeToExcel(jsonData, projectName, outputDir);
         
         res.json({ 
             success: true,
@@ -405,24 +536,11 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
     }
 });
 
-// Comment out the hourly cleanup job
-/* setInterval(async () => {
-    try {
-        // List all files
-        const files = await openai.files.list();
-        
-        // Delete files older than 1 hour
-        const oneHourAgo = Date.now() - 3600000;
-        for (const file of files.data) {
-            if (file.created_at * 1000 < oneHourAgo) {
-                await openai.files.del(file.id);
-                console.info(`Cleaned up old file: ${file.id}`);
-            }
-        }
-    } catch (error) {
-        console.error('Error in cleanup job:', error);
-    }
-}, 3600000); // Run every hour */
+// Periodic session cleanup (every hour)
+setInterval(async () => {
+    console.info('Running periodic session cleanup...');
+    await cleanupOldSessions();
+}, 3600000); // Run every hour
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -452,5 +570,5 @@ app.get('/download', (req, res) => {
 
 // Start server
 app.listen(port, () => {
-    console.info(`Server running at http://localhost:${port}`);
+    console.info(`Server running at http://localhost:${port} time: ${new Date().toISOString()}  `);
 }); 

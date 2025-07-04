@@ -2,8 +2,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const JSZip = require('jszip');
 
-// Create images directory if it doesn't exist
-fs.ensureDirSync('images');
+
 
 // Helper function to generate unique filenames
 function generateUniqueFilename(baseFilename, prefix = '', index = 0, extension = 'png') {
@@ -22,7 +21,7 @@ function safeWriteFile(filePath, data) {
     }
 }
 
-async function extractImages(filePath, baseFilename, fileExt) {
+async function extractImages(filePath, baseFilename, fileExt, outputDir = 'images') {
     console.log(`Starting image extraction for ${baseFilename}${fileExt}`);
     console.log(`File path: ${filePath}`);
     console.log(`Base filename: ${baseFilename}`);
@@ -82,7 +81,7 @@ async function extractImages(filePath, baseFilename, fileExt) {
                             const originalExt = path.extname(file).toLowerCase();
                             const imageExt = originalExt 
                             const imageFilename = generateUniqueFilename(baseFilename, '', i, imageExt);
-                            const outputPath = path.join('images', imageFilename);
+                            const outputPath = path.join(outputDir, imageFilename);
                             
                             console.log(`Processing image ${i + 1}/${files.length}: ${file}`);
                             console.log(`Original extension: ${originalExt}`);

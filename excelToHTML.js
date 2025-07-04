@@ -3,11 +3,11 @@ const fs = require("fs").promises;
 const path = require("path");
 const crypto = require("crypto");
 
-async function excelToHTML(filePath) {
+async function excelToHTML(filePath, sessionTempDir = null) {
   try {
     // Generate a unique ID for this conversion
     const uniqueId = crypto.randomBytes(16).toString('hex');
-    const tempDir = path.join(process.cwd(), 'temp');
+    const tempDir = sessionTempDir || path.join(process.cwd(), 'temp');
     
     // Ensure temp directory exists
     try {

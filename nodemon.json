@@ -1,0 +1,6 @@
+{
+    "events": {
+      "start": "node -e \"console.log('[nodemon] starting at ' + new Date().toLocaleString())\"",
+      "restart": "node -e \"console.log('\\n[nodemon] restarting at ' + new Date().toLocaleString())\""
+    }
+  }

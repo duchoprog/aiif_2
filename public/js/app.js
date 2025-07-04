@@ -9,6 +9,24 @@ const xlsWarningPopup = document.getElementById('xlsWarningPopup');
 const closePopupBtn = document.getElementById('closePopupBtn');
 let currentFiles = new Map();
 
+// Generate session name based on project name
+function generateSessionName(projectName) {
+    console.log("generating session name for project: ", projectName);
+    if (projectName && projectName.trim()) {
+        // Remove unsafe characters and trim
+        const safeName = projectName.trim().replace(/[^a-zA-Z0-9-_]/g, '');
+        // Generate a random 4-digit number
+        const random4 = Math.floor(1000 + Math.random() * 9000);
+        console.log("generated session name: ", `${safeName}-${random4}`);
+        return `${safeName}${random4}`;
+    } else {
+        // Generate a random 8-digit number
+        const random8 = Math.floor(10000000 + Math.random() * 90000000);
+        console.log("generated session name: ", `Session${random8}`);
+        return `Session${random8}`;
+    }
+}
+
 // Close popup when clicking the close button
 closePopupBtn.addEventListener('click', () => {
     xlsWarningPopup.style.display = 'none';
@@ -117,18 +135,22 @@ analyzeBtn.addEventListener('click', async () => {
         return;
     }
 
+    const sessionName = generateSessionName(projectName);
+
     const formData = new FormData();
     currentFiles.forEach(file => {
+        console.log("adding file to form data: ", file);
         formData.append('documents', file);
     });
     formData.append('projectName', projectName);
+    formData.append('sessionName', sessionName);
 
     loading.style.display = 'block';
     results.innerHTML = '';
     analyzeBtn.disabled = true;
 
     try {
-        const response = await fetch('/analyze', {
+        const response = await fetch(`/analyze?sessionName=${encodeURIComponent(sessionName)}`, {
             method: 'POST',
             body: formData
         });

@@ -9,11 +9,11 @@ let folderPath = "newproject";
 
 // Function to save the file buffer to the uploads directory
 async function saveFileToUploads(file, sessionID) {
-  const uploadsDir = path.join(__dirname, sessionID, "uploads");
+  const uploadsDir = path.join(__dirname, "sessions", sessionID, "uploads");
 
   // Ensure the uploads directory exists
   if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
+    fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
   // Construct the full path for the file
@@ -27,11 +27,11 @@ async function saveFileToUploads(file, sessionID) {
 
 async function saveFileToFiles(file, sessionID) {
   console.log("saving file");
-  const uploadsDir = path.join(__dirname, sessionID, "files");
+  const uploadsDir = path.join(__dirname, "sessions", sessionID, "files");
 
   // Ensure the uploads directory exists
   if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
+    fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
   // Construct the full path for the file
@@ -45,16 +45,15 @@ async function saveFileToFiles(file, sessionID) {
 
 async function savePrevFileToExcelBase(file, sessionID) {
   console.log("saving file");
-  const files = await fsPromises.readdir(path.join(__dirname, sessionID));
+  const files = await fsPromises.readdir(path.join(__dirname, "sessions", sessionID));
   console.log("files", files);
 
-  const uploadsDir = path.join(__dirname, sessionID, `excelBase`);
-  //const uploadsDir = folderPath + `/${sessionID}/excelBase`;
+  const uploadsDir = path.join(__dirname, "sessions", sessionID, `excelBase`);
   console.log(uploadsDir);
 
   // Ensure the uploads directory exists
   if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
+    fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
   // Construct the full path for the file
@@ -78,8 +77,8 @@ async function writeOutputToExcel(responseArray, res, projectName, sessionID) {
 
   // Select starting workbook
   console.log("Selecting workbook");
-  const filePath = fs.existsSync(`./${sessionID}/excelBase/addInfoToThis.xlsx`)
-    ? `./${sessionID}/excelBase/addInfoToThis.xlsx`
+  const filePath = fs.existsSync(`./sessions/${sessionID}/excelBase/addInfoToThis.xlsx`)
+    ? `./sessions/${sessionID}/excelBase/addInfoToThis.xlsx`
     : "./excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx";
   console.log("Using file path:", filePath);
 
@@ -203,7 +202,7 @@ async function writeOutputToExcel(responseArray, res, projectName, sessionID) {
   // Write the workbook back to the file
   var d = new Date();
   d = d.getTime().toString();
-  const outputPath = `./${sessionID}/output/${projectName}-${d}.xlsx`;
+  const outputPath = `./sessions/${sessionID}/output/${projectName}-${d}.xlsx`;
   console.log("Writing workbook to:", outputPath);
   await workbook.xlsx.writeFile(outputPath);
   console.log("Workbook written successfully");
@@ -307,16 +306,16 @@ async function manageFolders(sessionID) {
     "excelBase",
   ];
   console.log("sessionID", sessionID);
-  const folderPath = path.join(__dirname, sessionID);
+  const folderPath = path.join(__dirname, "sessions", sessionID);
   console.log(folderPath);
 
-  await fsPromises.mkdir(folderPath);
+  await fsPromises.mkdir(folderPath, { recursive: true });
 
   for (const folderName of folders) {
-    const folderPath = path.resolve(__dirname, sessionID, folderName);
+    const folderPath = path.resolve(__dirname, "sessions", sessionID, folderName);
 
     // Create the folder
-    await fsPromises.mkdir(folderPath);
+    await fsPromises.mkdir(folderPath, { recursive: true });
   }
 }
 

@@ -19,7 +19,7 @@ async function cleanupTempDir(tempDir) {
     }
 }
 
-async function extractImagesFromPDF(pdfPath, baseFilename) {
+async function extractImagesFromPDF(pdfPath, baseFilename, outputDir = 'images') {
     console.log("pdfPath", pdfPath);
     console.log("baseFilename", baseFilename);
     let tempDir = null;
@@ -35,7 +35,7 @@ async function extractImagesFromPDF(pdfPath, baseFilename) {
         // Save each image with a unique name
         for (let i = 0; i < images.length; i++) {
             const imageFilename = `${baseFilename}_image_${i + 1}.png`;
-            const imagePath = path.join("images", imageFilename);
+            const imagePath = path.join(outputDir, imageFilename);
             console.log("imagePath", imagePath);
             await fs.writeFile(imagePath, images[i]);
             
