@@ -492,6 +492,15 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
         
         const excelPath = await writeToExcel(jsonData, projectName, outputDir);
         
+        // Replace image filenames with actual embedded images
+        try {
+            await replaceImagesInExcel(excelPath, sessionName);
+            console.log('Images successfully embedded in Excel file');
+        } catch (error) {
+            console.error('Error embedding images in Excel:', error);
+            // Continue without images if there's an error
+        }
+        
         res.json({ 
             success: true,
             results,
@@ -536,11 +545,11 @@ app.post('/analyze', upload.array('documents'), async (req, res) => {
     }
 });
 
-// Periodic session cleanup (every hour)
+/* // Periodic session cleanup (every day)
 setInterval(async () => {
     console.info('Running periodic session cleanup...');
     await cleanupOldSessions();
-}, 3600000); // Run every hour
+}, 86400000); // Run every day */
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -567,6 +576,107 @@ app.get('/download', (req, res) => {
         }
     });
 });
+
+// Helper function to replace image filenames with actual images in Excel
+async function replaceImagesInExcel(excelPath, sessionName) {
+    try {
+        console.log(`Replacing images in Excel file: ${excelPath}`);
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        
+        // Read the Excel file
+        await workbook.xlsx.readFile(excelPath);
+        const worksheet = workbook.getWorksheet(1);
+        
+        // Get the images directory for this session
+        const imagesDir = path.join('sessions', sessionName, 'images');
+        
+        // Check if images directory exists
+        if (!fs.existsSync(imagesDir)) {
+            console.log(`Images directory not found: ${imagesDir}`);
+            return;
+        }
+        
+        // Get list of available images
+        const availableImages = fs.readdirSync(imagesDir);
+        console.log(`Available images in session: ${availableImages}`);
+        
+        // Function to find and replace image filenames with actual images
+        async function replaceImageFilenamesWithImages() {
+            let replacedCount = 0;
+            
+            worksheet.eachRow((row, rowNumber) => {
+                row.eachCell((cell, colNumber) => {
+                    if (
+                        cell.value &&
+                        typeof cell.value === "string" &&
+                        (cell.value.toLowerCase().endsWith(".jpeg") ||
+                         cell.value.toLowerCase().endsWith(".jpg") ||
+                         cell.value.toLowerCase().endsWith(".png") ||
+                         cell.value.toLowerCase().endsWith(".gif") ||
+                         cell.value.toLowerCase().endsWith(".bmp"))
+                    ) {
+                        console.log(`Found image filename in cell:  col: ${colNumber} row: ${rowNumber}    `);
+                        
+                        // Check if the image exists in the session's images directory
+                        const imagePath =  cell.value
+                        console.log(`Looking for image at: ${imagePath}`);
+                        
+                        if (fs.existsSync(imagePath)) {
+                            try {
+                                const imageBuffer = fs.readFileSync(imagePath);
+                                
+                                // Determine image extension from filename
+                                const extension = path.extname(cell.value).toLowerCase().substring(1);
+                                
+                                // Add image to workbook
+                                const imageId = workbook.addImage({
+                                    buffer: imageBuffer,
+                                    extension: extension,
+                                });
+                                
+                                console.log(`Added image to workbook with ID: ${imageId}`);
+                                
+                                // Clear the cell value (remove filename)
+                                //cell.value = "";
+                                
+                                // Add the image to the worksheet
+                                worksheet.addImage(imageId, {
+                                    tl: { col: colNumber - 1, row: rowNumber - 1 },
+                                    ext: { width: 100, height: 100 },
+                                });
+                                
+                                // Adjust row height and column width to accommodate image
+                                row.height = 100;
+                                worksheet.getColumn(colNumber).width = 30;
+                                
+                                replacedCount++;
+                                console.log(`Successfully replaced image: ${cell.value}`);
+                            } catch (error) {
+                                console.error(`Error processing image ${cell.value}:`, error);
+                            }
+                        } else {
+                            console.log(`Image not found: ${imagePath}`);
+                        }
+                    }
+                });
+            });
+            
+            console.log(`Total images replaced: ${replacedCount}`);
+        }
+        
+        // Replace image filenames with actual images
+        await replaceImageFilenamesWithImages();
+        
+        // Save the updated workbook
+        await workbook.xlsx.writeFile(excelPath);
+        console.log(`Excel file updated with embedded images: ${excelPath}`);
+        
+    } catch (error) {
+        console.error('Error replacing images in Excel:', error);
+        throw error;
+    }
+}
 
 // Start server
 app.listen(port, () => {

@@ -70,7 +70,7 @@ async function replaceImages(req) {
             cell.value.toLowerCase().endsWith(".gif") ||
             cell.value.toLowerCase().endsWith(".bmp")) //
         ) {
-          console.log("tengo que reemplazar ", cell.value);
+          console.log("tengo que reemplazar ", cell.value, "col:", colNumber, "row:", rowNumber);
 
           const imagePath = path.join(imagesDir, cell.value);
           console.log("de aca:", imagePath);

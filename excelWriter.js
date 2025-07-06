@@ -120,10 +120,18 @@ async function writeToExcel(data, projectName, sessionOutputDir = null) {
                 if (value && typeof value === 'string') {
                     // Find the corresponding column for this image
                     const imageNumber = parseInt(key.split(' ')[1]);
-                    const imageColumn = columnsToFill[imageNumber + 6]; // Adjust this offset based on your template
+                    console.log("imageNumber", imageNumber);
+                    const imageColumn = imageNumber + 31; // Adjust this offset based on your template
+                    console.log("imageColumn", imageColumn);
                     if (imageColumn) {
+                        console.log("imageColumn", imageColumn);
                         const cell = row.getCell(imageColumn);
                         cell.value = value; // Store the image filename
+                        if (imageColumn==32) {
+                            console.log("entra y copia el valor de la imagen en la celda 12");
+                            const cell = row.getCell(10);
+                            cell.value = value; // Store the image filename
+                        }
                     }
                 }
             });
