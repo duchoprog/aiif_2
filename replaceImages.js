@@ -68,6 +68,8 @@ async function replaceImages(req) {
             cell.value.toLowerCase().endsWith(".jpg") ||
             cell.value.toLowerCase().endsWith(".png") ||
             cell.value.toLowerCase().endsWith(".gif") ||
+            cell.value.toLowerCase().endsWith(".tif") ||
+            cell.value.toLowerCase().endsWith(".tiff") ||
             cell.value.toLowerCase().endsWith(".bmp")) //
         ) {
           console.log("tengo que reemplazar ", cell.value, "col:", colNumber, "row:", rowNumber);
@@ -100,10 +102,9 @@ async function replaceImages(req) {
     });
   }
 
-  // Replace JPEG filenames with images
-  // logMemoryUsage("antes de replacejpg");
+  
   await replaceJpegFilenamesWithImages();
-  // logMemoryUsage("despues de replacejpg");
+ 
 
   // Write the updated workbook to a new file
   await workbook.xlsx.writeFile(

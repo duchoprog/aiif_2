@@ -121,14 +121,14 @@ async function writeToExcel(data, projectName, sessionOutputDir = null) {
                     // Find the corresponding column for this image
                     const imageNumber = parseInt(key.split(' ')[1]);
                     console.log("imageNumber", imageNumber);
-                    const imageColumn = imageNumber + 31; // Adjust this offset based on your template
+                    const imageColumn = imageNumber +45 ; // Adjust this offset based on your template
                     console.log("imageColumn", imageColumn);
                     if (imageColumn) {
                         console.log("imageColumn", imageColumn);
                         const cell = row.getCell(imageColumn);
                         cell.value = value; // Store the image filename
-                        if (imageColumn==32) {
-                            console.log("entra y copia el valor de la imagen en la celda 12");
+                        if (imageColumn==46) {
+                            console.log("entra y copia el valor de la imagen en la celda 10");
                             const cell = row.getCell(10);
                             cell.value = value; // Store the image filename
                         }

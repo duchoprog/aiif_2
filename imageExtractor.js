@@ -47,6 +47,7 @@ async function extractImages(filePath, baseFilename, fileExt, outputDir = 'image
                 console.log('Extracting files from archive...');
                 await Promise.all(
                     Object.keys(zip.files).map(async (filename) => {
+                        console.log("filename", filename, "baseFilename", baseFilename );
                         const file = zip.files[filename];
                         if (!file.dir) {
                             const content = await file.async('nodebuffer');
