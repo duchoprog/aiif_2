@@ -1,4 +1,4 @@
-// tiffToJPG.cjs
+/* // tiffToJPG.cjs
 const sharp = require('sharp');
 const fs = require('fs').promises;
 
@@ -22,3 +22,4 @@ async function convertTiffToPng(sourcePath, outputPath) {
 module.exports = {
   convertTiffToPng
 };
+ */
