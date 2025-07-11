@@ -7,7 +7,15 @@ const loading = document.getElementById("loading");
 const results = document.getElementById("results");
 const xlsWarningPopup = document.getElementById("xlsWarningPopup");
 const closePopupBtn = document.getElementById("closePopupBtn");
+
+// Excel Base file elements
+const excelBaseDropZone = document.getElementById("excelBaseDropZone");
+const excelBaseInput = document.getElementById("excelBaseInput");
+const selectExcelBaseBtn = document.getElementById("selectExcelBaseBtn");
+const excelBaseFileList = document.getElementById("excelBaseFileList");
+
 let currentFiles = new Map();
+let excelBaseFile = null; // Store the excel base file
 
 // Generate session name based on project name
 function generateSessionName(projectName) {
@@ -38,6 +46,86 @@ xlsWarningPopup.addEventListener("click", (e) => {
     xlsWarningPopup.style.display = "none";
   }
 });
+
+// Excel Base file event handlers
+selectExcelBaseBtn.addEventListener("click", () => excelBaseInput.click());
+excelBaseInput.addEventListener("change", handleExcelBaseFileSelect, false);
+
+// Prevent default drag behaviors for excel base drop zone
+["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+  excelBaseDropZone.addEventListener(eventName, preventDefaults, false);
+});
+
+// Highlight excel base drop zone when dragging over it
+["dragenter", "dragover"].forEach((eventName) => {
+  excelBaseDropZone.addEventListener(eventName, highlightExcelBase, false);
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+  excelBaseDropZone.addEventListener(eventName, unhighlightExcelBase, false);
+});
+
+function highlightExcelBase(e) {
+  excelBaseDropZone.classList.add("dragover");
+}
+
+function unhighlightExcelBase(e) {
+  excelBaseDropZone.classList.remove("dragover");
+}
+
+// Handle excel base file drop
+excelBaseDropZone.addEventListener("drop", handleExcelBaseDrop, false);
+
+function handleExcelBaseDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  if (files.length > 0) {
+    handleExcelBaseFile(files[0]);
+  }
+}
+
+function handleExcelBaseFileSelect(e) {
+  const files = e.target.files;
+  if (files.length > 0) {
+    handleExcelBaseFile(files[0]);
+  }
+}
+
+function handleExcelBaseFile(file) {
+  // Only accept spreadsheet files
+  const fileName = file.name.toLowerCase();
+  if (!fileName.endsWith('.xls') && !fileName.endsWith('.xlsx')) {
+    alert('Please select a spreadsheet file (.xls or .xlsx)');
+    return;
+  }
+  
+  excelBaseFile = file;
+  updateExcelBaseFileList();
+}
+
+function updateExcelBaseFileList() {
+  excelBaseFileList.innerHTML = "";
+  if (excelBaseFile) {
+    const fileItem = document.createElement("div");
+    fileItem.className = "file-item";
+
+    const fileNameSpan = document.createElement("span");
+    fileNameSpan.textContent = excelBaseFile.name;
+
+    const removeButton = document.createElement("button");
+    removeButton.textContent = "×";
+    removeButton.addEventListener("click", () => removeExcelBaseFile());
+
+    fileItem.appendChild(fileNameSpan);
+    fileItem.appendChild(removeButton);
+    excelBaseFileList.appendChild(fileItem);
+  }
+}
+
+function removeExcelBaseFile() {
+  excelBaseFile = null;
+  updateExcelBaseFileList();
+}
 
 // Prevent default drag behaviors
 ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
@@ -143,6 +231,13 @@ analyzeBtn.addEventListener("click", async () => {
     console.log("adding file to form data: ", file);
     formData.append("documents", file);
   });
+  
+  // Add excel base file if provided
+  if (excelBaseFile) {
+    console.log("adding excel base file to form data: ", excelBaseFile);
+    formData.append("excelBase", excelBaseFile);
+  }
+  
   formData.append("projectName", projectName);
   formData.append("sessionName", sessionName);
 
@@ -195,6 +290,8 @@ analyzeBtn.addEventListener("click", async () => {
 
       // Add download link if Excel was generated
       if (data.excelPath) {
+        dropZone.classList.add("invisible");
+        analyzeBtn.classList.add("invisible");
         const encodedPath = encodeURIComponent(data.excelPath);
         results.innerHTML += `
         <div class="excel-download">
@@ -207,6 +304,9 @@ analyzeBtn.addEventListener("click", async () => {
             <a href="/auth/google?resourceUrl=${encodedPath}" class="drive-btn">
                 Upload to Google Drive
             </a>
+            <div class="upload-status">
+                <a href="/" class="restart-btn">Start a New Analysis</a>
+            </div>
         </div>
     `;
       }
@@ -220,6 +320,8 @@ analyzeBtn.addEventListener("click", async () => {
     loading.style.display = "none";
     analyzeBtn.disabled = false;
     currentFiles.clear();
+    excelBaseFile = null;
     updateFileList();
+    updateExcelBaseFileList();
   }
 });

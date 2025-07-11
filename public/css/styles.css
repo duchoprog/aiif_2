@@ -236,7 +236,7 @@ button:disabled {
     text-align: center;
 }
 
-.download-btn, .drive-btn {
+.download-btn, .drive-btn, .restart-btn {
     display: inline-block;
     padding: 10px 20px;
     background-color: #28a745;
@@ -245,6 +245,13 @@ button:disabled {
     border-radius: 4px;
     margin-top: 10px;
     transition: background-color 0.3s;
+}
+.restart-btn {
+    background-color: #2196f3;
+}
+
+.invisible {
+    display: none;
 }
 
 .download-btn:hover {
@@ -273,4 +280,34 @@ button:disabled {
 
 .project-name-container input::placeholder {
     color: #999;
+}
+
+/* Excel Base Section Styles */
+.excel-base-section {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.excel-base-section h3 {
+    color: #333;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.excel-base-drop-zone {
+    border: 2px dashed #28a745;
+    background-color: #f8fff9;
+}
+
+.excel-base-drop-zone.dragover {
+    background-color: #d4edda;
+    border-color: #28a745;
+}
+
+.excel-base-drop-zone p {
+    color: #155724;
+    margin-bottom: 1rem;
 } 

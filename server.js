@@ -208,6 +208,71 @@ const upload = multer({
   },
 });
 
+// Separate multer configuration for excelBase files
+const excelBaseStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Extract session name from query parameters
+    const sessionName = req.query.sessionName;
+    if (!sessionName) {
+      return cb(new Error("Session name is required"), null);
+    }
+
+    console.log("Found session name from query for excelBase:", sessionName);
+    const validatedSessionName = validateSessionName(sessionName);
+    console.log("Validated session name for excelBase:", validatedSessionName);
+    if (!validatedSessionName) {
+      console.error("Invalid session name after validation for excelBase:", sessionName);
+      return cb(new Error("Invalid session name"), null);
+    }
+
+    const sessionDir = path.join("sessions", validatedSessionName);
+    const excelBaseDir = path.join(sessionDir, "excelBase");
+
+    // Create directories if they don't exist
+    [sessionDir, excelBaseDir].forEach((dir) => {
+      if (!fs.existsSync(dir)) {
+        console.log("creating directory: ", dir);
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    });
+
+    cb(null, excelBaseDir);
+  },
+  filename: function (req, file, cb) {
+    // Keep original filename for excelBase files
+    cb(null, file.originalname);
+  },
+});
+
+const excelBaseFileFilter = (req, file, cb) => {
+  console.log("ExcelBase fileFilter called with file:", file);
+  const allowedTypes = [
+    "application/vnd.ms-excel", // .xls
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  ];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    console.log("ExcelBase file type accepted:", file.mimetype);
+    cb(null, true);
+  } else {
+    console.log("ExcelBase file type rejected:", file.mimetype);
+    cb(
+      new Error(
+        "Invalid file type. Only XLS and XLSX files are allowed for base spreadsheet."
+      ),
+      false
+    );
+  }
+};
+
+const uploadExcelBase = multer({
+  storage: excelBaseStorage,
+  fileFilter: excelBaseFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+});
+
 // Middleware
 app.use(helmet());
 app.use(compression());
@@ -255,7 +320,10 @@ app.use((err, req, res, next) => {
 });
 
 // Routes
-app.post("/analyze", upload.array("documents"), async (req, res) => {
+app.post("/analyze", upload.fields([
+  { name: 'documents', maxCount: 10 },
+  { name: 'excelBase', maxCount: 1 }
+]), async (req, res) => {
   console.log("**RECEIVED REQUEST**", req.body);
   try {
     const sessionName = validateSessionName(req.body.sessionName);
@@ -269,19 +337,26 @@ app.post("/analyze", upload.array("documents"), async (req, res) => {
       return res.status(400).json({ error: "Project name is required" });
     }
 
-    if (!req.files || req.files.length === 0) {
-      console.error("No files were uploaded");
-      return res.status(400).json({ error: "No files uploaded" });
+    if (!req.files || !req.files.documents || req.files.documents.length === 0) {
+      console.error("No documents were uploaded");
+      return res.status(400).json({ error: "No documents uploaded" });
     }
 
-    console.info(`Received ${req.files.length} files for processing`);
+    console.info(`Received ${req.files.documents.length} documents for processing`);
+    
+    // Handle excelBase file if provided
+    if (req.files.excelBase && req.files.excelBase.length > 0) {
+      const excelBaseFile = req.files.excelBase[0];
+      console.info(`Received excelBase file: ${excelBaseFile.originalname}`);
+      console.info(`ExcelBase file stored at: ${excelBaseFile.path}`);
+    }
 
     // Log session directory structure
     const sessionDir = path.join("sessions", sessionName);
     console.info(`Using session directory: ${sessionDir}`);
 
     const results = await Promise.all(
-      req.files.map(async (file) => {
+      req.files.documents.map(async (file) => {
         try {
           console.info(
             `Processing file: ${file.originalname} (${file.mimetype})`
