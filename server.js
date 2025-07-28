@@ -49,7 +49,7 @@ app.set("view engine", "ejs");
 
 // Session configuration.
 const SESSION_CLEANUP_MINUTES =
-  parseInt(process.env.SESSION_CLEANUP_MINUTES) || 1; // 24 hourswould be 1440
+  parseInt(process.env.SESSION_CLEANUP_MINUTES) || 10; // 24 hourswould be 1440
 const SESSION_CLEANUP_MS = SESSION_CLEANUP_MINUTES * 60 * 1000;
 
 // Helper function to validate and sanitize session name
@@ -324,10 +324,33 @@ app.post("/analyze", upload.fields([
   { name: 'documents', maxCount: 10 },
   { name: 'excelBase', maxCount: 1 }
 ]), async (req, res) => {
-  console.log("**RECEIVED REQUEST**", req.body);
+  // Log regular fields
+  console.log('Text Fields:', {
+    projectName: req.body.projectName,
+    sessionName: req.body.sessionName
+  });
+
+  // Log files metadata
+  console.log('Uploaded Files:');
+  
+  if (req.files['documents']) {
+    console.log('Documents:');
+    req.files['documents'].forEach(file => {
+      console.log(`- ${file.originalname} (${file.size} bytes)`);
+    });
+  }
+
+  if (req.files['excelBase']) {
+    console.log('Excel Base Files:');
+    req.files['excelBase'].forEach(file => {
+      console.log(`- ${file.originalname} (${file.size} bytes)`);
+    });
+  }
+ 
+  
   try {
-    const sessionName = validateSessionName(req.body.sessionName);
-    const projectName = req.body.projectName;
+    const sessionName = validateSessionName(req.query.sessionName);
+        const projectName = req.body.projectName;
 
     if (!sessionName) {
       return res.status(400).json({ error: "Session name is required" });
@@ -344,13 +367,24 @@ app.post("/analyze", upload.fields([
 
     console.info(`Received ${req.files.documents.length} documents for processing`);
     
-    // Handle excelBase file if provided
     if (req.files.excelBase && req.files.excelBase.length > 0) {
       const excelBaseFile = req.files.excelBase[0];
       console.info(`Received excelBase file: ${excelBaseFile.originalname}`);
-      console.info(`ExcelBase file stored at: ${excelBaseFile.path}`);
-    }
 
+      // 1. Define the destination directory and file path
+      const destDir = path.join('sessions', sessionName, 'excelBase');
+      const finalPath = path.join(destDir, excelBaseFile.originalname);
+
+      // 2. Ensure the destination directory exists
+      // The { recursive: true } option creates parent directories if they don't exist
+      await fs.promises.mkdir(destDir, { recursive: true });
+
+      // 3. Move the file from its temporary upload location to the final destination
+      // fs.rename is the most efficient way to do this.
+      await fs.promises.rename(excelBaseFile.path, finalPath);
+      
+      console.info(`ExcelBase file successfully saved to: ${finalPath}`);
+    }
     // Log session directory structure
     const sessionDir = path.join("sessions", sessionName);
     console.info(`Using session directory: ${sessionDir}`);

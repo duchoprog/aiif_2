@@ -1,6 +1,9 @@
 const dropZone = document.getElementById("dropZone");
+const dropZoneXls = document.getElementById("dropZoneXls");
 const fileInput = document.getElementById("fileInput");
 const selectFilesBtn = document.getElementById("selectFilesBtn");
+const excelBaseInput = document.getElementById("excelBaseInput");
+const selectFilesBtnXls = document.getElementById("selectFilesBtnXls");
 const fileList = document.getElementById("fileList");
 const analyzeBtn = document.getElementById("analyzeBtn");
 const loading = document.getElementById("loading");
@@ -8,6 +11,7 @@ const results = document.getElementById("results");
 const xlsWarningPopup = document.getElementById("xlsWarningPopup");
 const closePopupBtn = document.getElementById("closePopupBtn");
 let currentFiles = new Map();
+let excelBaseFiles = new Map();
 
 // Generate session name based on project name
 function generateSessionName(projectName) {
@@ -42,6 +46,7 @@ xlsWarningPopup.addEventListener("click", (e) => {
 // Prevent default drag behaviors
 ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
   dropZone.addEventListener(eventName, preventDefaults, false);
+  dropZoneXls.addEventListener(eventName, preventDefaults, false);
   document.body.addEventListener(eventName, preventDefaults, false);
 });
 
@@ -53,10 +58,12 @@ function preventDefaults(e) {
 // Highlight drop zone when dragging over it
 ["dragenter", "dragover"].forEach((eventName) => {
   dropZone.addEventListener(eventName, highlight, false);
+  dropZoneXls.addEventListener(eventName, highlightXls, false);
 });
 
 ["dragleave", "drop"].forEach((eventName) => {
   dropZone.addEventListener(eventName, unhighlight, false);
+  dropZoneXls.addEventListener(eventName, unhighlightXls, false);
 });
 
 function highlight(e) {
@@ -67,10 +74,21 @@ function unhighlight(e) {
   dropZone.classList.remove("dragover");
 }
 
+function highlightXls(e) {
+  dropZoneXls.classList.add("dragover");
+}
+
+function unhighlightXls(e) {
+  dropZoneXls.classList.remove("dragover");
+}
+
 // Handle dropped files
 dropZone.addEventListener("drop", handleDrop, false);
+dropZoneXls.addEventListener("drop", handleDropXls, false);
 fileInput.addEventListener("change", handleFileSelect, false);
 selectFilesBtn.addEventListener("click", () => fileInput.click());
+excelBaseInput.addEventListener("change", handleFileSelectXls, false);
+selectFilesBtnXls.addEventListener("click", () => excelBaseInput.click());
 
 function handleDrop(e) {
   const dt = e.dataTransfer;
@@ -81,6 +99,17 @@ function handleDrop(e) {
 function handleFileSelect(e) {
   const files = e.target.files;
   handleFiles(files);
+}
+
+function handleDropXls(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  handleFilesXls(files);
+}
+
+function handleFileSelectXls(e) {
+  const files = e.target.files;
+  handleFilesXls(files);
 }
 
 function handleFiles(files) {
@@ -99,6 +128,16 @@ function handleFiles(files) {
   if (hasXlsFile) {
     xlsWarningPopup.style.display = "flex";
   }
+}
+
+function handleFilesXls(files) {
+  // Clear previous files and keep only the last uploaded file
+  excelBaseFiles.clear();
+  const lastFile = Array.from(files).pop();
+  if (lastFile) {
+    excelBaseFiles.set(lastFile.name, lastFile);
+  }
+  updateFileListXls();
 }
 
 function updateFileList() {
@@ -126,6 +165,31 @@ function removeFile(filename) {
   analyzeBtn.disabled = currentFiles.size === 0;
 }
 
+function updateFileListXls() {
+  const fileListXls = document.getElementById("fileListXls");
+  fileListXls.innerHTML = "";
+  excelBaseFiles.forEach((file, name) => {
+    const fileItem = document.createElement("div");
+    fileItem.className = "file-item";
+
+    const fileNameSpan = document.createElement("span");
+    fileNameSpan.textContent = name;
+
+    const removeButton = document.createElement("button");
+    removeButton.textContent = "×";
+    removeButton.addEventListener("click", () => removeFileXls(name));
+
+    fileItem.appendChild(fileNameSpan);
+    fileItem.appendChild(removeButton);
+    fileListXls.appendChild(fileItem);
+  });
+}
+
+function removeFileXls(filename) {
+  excelBaseFiles.delete(filename);
+  updateFileListXls();
+}
+
 analyzeBtn.addEventListener("click", async () => {
   console.log("data enviada: ", new Date().toLocaleTimeString());
   if (currentFiles.size === 0) return;
@@ -143,14 +207,35 @@ analyzeBtn.addEventListener("click", async () => {
     console.log("adding file to form data: ", file);
     formData.append("documents", file);
   });
+  excelBaseFiles.forEach((file) => {
+    console.log("adding excel base file to form data: ", file);
+    formData.append("excelBase", file);
+  });
   formData.append("projectName", projectName);
-  formData.append("sessionName", sessionName);
+
 
   loading.style.display = "block";
   results.innerHTML = "";
   analyzeBtn.disabled = true;
 
   try {
+    
+console.log("--- FormData Contents ---");
+console.log(`/analyze?sessionName=${encodeURIComponent(sessionName)}`);
+
+// Log regular fields
+console.log("Project Name:", formData.get("projectName"));
+console.log("Session Name:", sessionName);
+
+// Log document files (just names)
+const documentFiles = formData.getAll("documents");
+console.log("Documents:", documentFiles.map(file => file.name).join(", "));
+
+// Log excel base files (just names)
+const excelFiles = formData.getAll("excelBase");
+console.log("Excel Base Files:", excelFiles.map(file => file.name).join(", "));
+
+console.log("-------------------------");
     const response = await fetch(
       `/analyze?sessionName=${encodeURIComponent(sessionName)}`,
       {
@@ -195,7 +280,15 @@ analyzeBtn.addEventListener("click", async () => {
 
       // Add download link if Excel was generated
       if (data.excelPath) {
-        dropZone.classList.add("invisible");
+        const elementsToHide = document.querySelectorAll('.fileInputContainer');
+
+
+elementsToHide.forEach(element => {
+  
+  element.classList.add('invisible');
+});
+        
+
         analyzeBtn.classList.add("invisible");
         const encodedPath = encodeURIComponent(data.excelPath);
         results.innerHTML += `
@@ -225,6 +318,8 @@ analyzeBtn.addEventListener("click", async () => {
     loading.style.display = "none";
     analyzeBtn.disabled = false;
     currentFiles.clear();
+    excelBaseFiles.clear();
     updateFileList();
+    updateFileListXls();
   }
 });

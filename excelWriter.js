@@ -10,24 +10,45 @@ async function writeToExcel(data, projectName, sessionOutputDir = null) {
         console.log('Data length:', Array.isArray(data) ? data.length : 'Not an array');
         console.log('Data structure:', JSON.stringify(data, null, 2));
         
-        // Set default paths
-        let templatePath;
-        if (sessionOutputDir) {
-            // First try session's excelBase
-            const sessionTemplatePath = path.join(path.dirname(sessionOutputDir), 'excelBase', 'INQUIRY 2024 TEMPLATE v4 pablo2.xlsx');
-            const rootTemplatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
-            
-            // Check if session template exists, otherwise use root template
-            if (fs.existsSync(sessionTemplatePath)) {
-                templatePath = sessionTemplatePath;
-                console.log(`Using session template: ${templatePath}`);
-            } else {
-                templatePath = rootTemplatePath;
-                console.log(`Session template not found, using root template: ${templatePath}`);
-            }
-        } else {
-            templatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
-        }
+///////
+// The root template path, used as a fallback
+const rootTemplatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
+let templatePath; // This will hold the final path to be used
+
+if (sessionOutputDir) {
+    // Define the path to the session's specific excelBase folder
+    const sessionExcelBaseDir = path.join(path.dirname(sessionOutputDir), 'excelBase');
+    let sessionTemplateFilename = null;
+
+    // 1. Check if the session's excelBase directory actually exists
+    if (fs.existsSync(sessionExcelBaseDir)) {
+        // 2. Read all the files inside that directory
+        const filesInDir = fs.readdirSync(sessionExcelBaseDir);
+        
+        // 3. Find the first file that ends with .xlsx or .xls
+        sessionTemplateFilename = filesInDir.find(file => 
+            file.toLowerCase().endsWith('.xlsx') || file.toLowerCase().endsWith('.xls')
+        );
+    }
+
+    // 4. If we successfully found a spreadsheet file in the session folder, use it
+    if (sessionTemplateFilename) {
+        templatePath = path.join(sessionExcelBaseDir, sessionTemplateFilename);
+        console.log(`Using session-specific template: ${templatePath}`);
+    } else {
+        // 5. Otherwise, fall back to the default root template
+        templatePath = rootTemplatePath;
+        console.log(`Session template not found, using root template: ${templatePath}`);
+    }
+} else {
+    // Fallback if there's no sessionOutputDir at all
+    templatePath = rootTemplatePath;
+    console.log(`No session output directory, using root template: ${templatePath}`);
+}
+
+// Now, 'templatePath' holds the correct path to either the session's Excel file or the fallback.
+
+//////
         
         const timestamp = new Date().getTime();
         const outputDir = sessionOutputDir || './output';
