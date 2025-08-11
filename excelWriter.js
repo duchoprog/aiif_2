@@ -12,7 +12,7 @@ async function writeToExcel(data, projectName, sessionOutputDir = null) {
         
 ///////
 // The root template path, used as a fallback
-const rootTemplatePath = './excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
+const rootTemplatePath = 'INQUIRY 2024 TEMPLATE v4 pablo2.xlsx';
 let templatePath; // This will hold the final path to be used
 
 if (sessionOutputDir) {

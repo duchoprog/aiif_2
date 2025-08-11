@@ -79,7 +79,7 @@ async function writeOutputToExcel(responseArray, res, projectName, sessionID) {
   console.log("Selecting workbook");
   const filePath = fs.existsSync(`./sessions/${sessionID}/excelBase/addInfoToThis.xlsx`)
     ? `./sessions/${sessionID}/excelBase/addInfoToThis.xlsx`
-    : "./excelBase/INQUIRY 2024 TEMPLATE v4 pablo2.xlsx";
+    : "INQUIRY 2024 TEMPLATE v4 pablo2.xlsx";
   console.log("Using file path:", filePath);
 
   const workbook = new ExcelJS.Workbook();
