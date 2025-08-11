@@ -5,7 +5,7 @@ images\*.*
 *.png
 *.jpg
 *.jpeg
-*.xlsx
+
 uploads\*.*
 sessions\*.*
 output\*.*
