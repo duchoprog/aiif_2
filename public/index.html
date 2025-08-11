@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document Analysis</title>
+    <!-- Link to the external CSS file -->
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
@@ -17,32 +18,36 @@
           required
         />
       </div>
-      <div style="border: 1px solid red" class="fileInputContainer">
-        <h2 style="position: relative; text-align: center;">Files to analyze</h2><div id="dropZone" class="drop-zone">
-        <p>Drag and drop files here or</p>
-        <input
-          type="file"
-          id="fileInput"
-          multiple
-          accept=".pdf,.doc,.docx,.txt,.md,.json,.csv,.xls,.xlsx"
-          style="display: none"
-        />
-        <button id="selectFilesBtn">Select Files</button>  
-        <div id="fileList" class="file-list"></div>
-      </div></div>
-      <div style="border: 1px solid green" class="fileInputContainer">
-        <h2 style="position: relative; text-align: center;">Previous spreadsheet (optional)</h2><div id="dropZoneXls" class="drop-zone">
-        <p>Drag and drop a spreadsheet here or</p>
-        <input
-          type="file"
-          id="excelBaseInput"
-          multiple
-          accept=".xls,.xlsx"
-          style="display: none"
-        />
-        <button id="selectFilesBtnXls">Select Spreadsheet</button>
-        <div id="fileListXls" class="file-list"></div>
-      </div></div>
+      <div class="fileInputContainer">
+        <h2>Files to analyze</h2>
+        <div id="dropZone" class="drop-zone">
+          <p>Drag and drop files here or</p>
+          <input
+            type="file"
+            id="fileInput"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.md,.json,.csv,.xls,.xlsx"
+            style="display: none"
+          />
+          <button id="selectFilesBtn">Select Files</button>
+          <div id="fileList" class="file-list"></div>
+        </div>
+      </div>
+      <div class="fileInputContainer">
+        <h2>Previous spreadsheet (optional)</h2>
+        <div id="dropZoneXls" class="drop-zone">
+          <p>Drag and drop a spreadsheet here or</p>
+          <input
+            type="file"
+            id="excelBaseInput"
+            multiple
+            accept=".xls,.xlsx"
+            style="display: none"
+          />
+          <button id="selectFilesBtnXls">Select Spreadsheet</button>
+          <div id="fileListXls" class="file-list"></div>
+        </div>
+      </div>
       <button id="analyzeBtn" disabled>Analyze Documents</button>
       <div id="loading" class="loading" style="display: none">
         <div class="spinner"></div>
@@ -63,7 +68,8 @@
         </div>
       </div>
     </div>
-    
+
+    <!-- Link to the external JavaScript file -->
     <script src="js/app.js"></script>
   </body>
 </html>
